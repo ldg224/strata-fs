@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strata Flight School & Landing Analyzer (v0.3.0)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        strata: {
+                            50: '#fff1f5',
+                            100: '#ffe4ed',
+                            500: '#fa1167',
+                            600: '#e00052',
+                            700: '#be0043',
+                            bg: '#0d0f12',
+                            card: '#15181e',
+                            border: '#242932',
+                            hover: '#1e222a'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        
+        body {
+            background-color: #0d0f12;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .strata-card {
+            background-color: #15181e;
+            border: 1px solid #242932;
+            border-radius: 0.75rem;
+        }
+
+        .strata-card-hover:hover {
+            border-color: #fa1167;
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0d0f12;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #242932;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #fa1167;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-[#fa1167] selection:text-white pb-10">
+
+    <!-- Header -->
+    <header class="sticky top-0 z-40 bg-[#15181e] border-b border-[#242932] px-4 lg:px-8 py-3.5 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="p-2.5 bg-[#fa1167] rounded-xl text-white shadow-md shadow-[#fa1167]/20 flex items-center justify-center">
+                <i data-lucide="plane" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                    Strata Flight School <span class="text-xs font-mono font-normal bg-[#242932] text-[#fa1167] px-2 py-0.5 rounded-md border border-[#242932]">v0.3.0</span>
+                </h1>
+                <p class="text-xs text-slate-400 hidden sm:block">Pilot Training Academy & Landing Telemetry Tracker</p>
+            </div>
+        </div>
+
+        <!-- Pilot Quick Bar -->
+        <div class="flex items-center gap-3">
+            <div class="hidden md:flex items-center gap-4 text-xs font-mono bg-[#0d0f12] px-3 py-1.5 rounded-lg border border-[#242932]">
+                <div>
+                    <span class="text-slate-500">HOURS:</span>
+                    <span id="hdr-hours" class="text-white font-semibold ml-1">0.0</span>
+                </div>
+                <div class="h-3 w-px bg-[#242932]"></div>
+                <div>
+                    <span class="text-slate-500">AVG VS:</span>
+                    <span id="hdr-avg-vs" class="text-[#fa1167] font-semibold ml-1">-- fpm</span>
+                </div>
+                <div class="h-3 w-px bg-[#242932]"></div>
+                <div>
+                    <span class="text-slate-500">FLIGHTS:</span>
+                    <span id="hdr-flights" class="text-emerald-400 font-semibold ml-1">0</span>
+                </div>
+            </div>
+
+            <button onclick="openExportImportModal()" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1e222a] hover:bg-[#242932] text-slate-200 border border-[#242932] flex items-center gap-1.5 transition">
+                <i data-lucide="database" class="w-3.5 h-3.5 text-[#fa1167]"></i>
+                <span class="hidden sm:inline">Data Backup</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        
+        <!-- Navigation Tabs -->
+        <div class="flex border-b border-[#242932] mb-6 overflow-x-auto no-scrollbar scroll-smooth">
+            <button id="tab-btn-analyzer" onclick="switchTab('analyzer')" class="px-5 py-3 font-semibold text-sm border-b-2 border-[#fa1167] text-[#fa1167] flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="gauge" class="w-4 h-4"></i>
+                Landing Analyzer
+            </button>
+            <button id="tab-btn-logbook" onclick="switchTab('logbook')" class="px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="book-open" class="w-4 h-4"></i>
+                Flight Logbook
+            </button>
+            <button id="tab-btn-syllabus" onclick="switchTab('syllabus')" class="px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+                Training Syllabus
+            </button>
+            <button id="tab-btn-stats" onclick="switchTab('stats')" class="px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition">
+                <i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+                Stats & Performance
+            </button>
+        </div>
+
+        <!-- ==================== TAB 1: LANDING ANALYZER ==================== -->
+        <div id="tab-content-analyzer" class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Input Form -->
+                <div class="lg:col-span-7 space-y-6">
+                    <form id="landing-form" onsubmit="processFlightSubmission(event)" class="strata-card p-6 space-y-5">
+                        <div class="flex items-center justify-between border-b border-[#242932] pb-3">
+                            <h2 class="text-base font-bold text-white flex items-center gap-2">
+                                <i data-lucide="plus-circle" class="w-4 h-4 text-[#fa1167]"></i>
+                                Log Flight & Touchdown Telemetry
+                            </h2>
+                            <span class="text-xs text-slate-500 font-mono">Flight Entry</span>
+                        </div>
+
+                        <!-- Aircraft Selection & Manual Override -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">AIRCRAFT MODEL</label>
+                                <select id="inp-aircraft-select" onchange="handleAircraftSelectChange()" class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167]">
+                                    <option value="C152">Cessna 152 (C152)</option>
+                                    <option value="C172" selected>Cessna 172 Skyhawk (C172)</option>
+                                    <option value="CUSTOM">Manual Override / Custom ICAO</option>
+                                </select>
+                            </div>
+
+                            <div id="custom-aircraft-container" class="hidden">
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">CUSTOM TYPE / ICAO</label>
+                                <input type="text" id="inp-aircraft-custom" placeholder="e.g. A320, B738, PA28" class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167]">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">REGISTRATION / TAIL NUMBER</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="inp-tail" placeholder="e.g. N172SP, VH-OQA" onblur="fetchPlanespottersPhoto()" class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] uppercase font-mono">
+                                    <button type="button" onclick="fetchPlanespottersPhoto()" class="px-3 py-2 bg-[#1e222a] hover:bg-[#242932] text-slate-200 border border-[#242932] rounded-lg text-xs font-medium flex items-center gap-1 transition shrink-0" title="Query Planespotters.net">
+                                        <i data-lucide="camera" class="w-3.5 h-3.5 text-[#fa1167]"></i>
+                                        <span>Fetch</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Planespotters Photo Embed Block -->
+                        <div id="photo-[#fa1167]view-container" class="hidden bg-[#0d0f12] border border-[#242932] rounded-xl p-3">
+                            <div class="flex flex-col sm:flex-row items-center gap-4">
+                                <img id="aircraft-photo-img" src="" alt="Aircraft Photo" class="w-full sm:w-36 h-24 object-cover rounded-lg border border-[#242932]">
+                                <div class="space-y-1 text-center sm:text-left flex-1">
+                                    <div class="text-xs font-semibold text-slate-400 font-mono" id="photo-reg-label">--</div>
+                                    <div class="text-sm font-bold text-white" id="photo-title-label">--</div>
+                                    <div class="text-xs text-slate-400" id="photo-photographer-label">--</div>
+                                    <a id="photo-link" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-[#fa1167] hover:underline font-medium pt-1">
+                                        View on Planespotters.net <i data-lucide="external-link" class="w-3 h-3"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="photo-error-message" class="hidden text-xs text-slate-500 bg-[#0d0f12] p-2.5 rounded-lg border border-[#242932] flex items-center gap-2">
+                            <i data-lucide="info" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                            <span>No Planespotters photo record found for this tail number. You can still log the flight manually.</span>
+                        </div>
+
+                        <!-- Route & Flight Specs -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">AIRPORT ICAO</label>
+                                <input type="text" id="inp-airport" placeholder="e.g. KSFO, EGLL" required uppercase maxlength="4" class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] uppercase font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">FLIGHT DURATION (HRS)</label>
+                                <input type="number" id="inp-duration" step="0.1" min="0.1" max="24" placeholder="1.2" required class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">DATE & TIME</label>
+                                <input type="datetime-local" id="inp-datetime" required class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                            </div>
+                        </div>
+
+                        <!-- Telemetry Inputs -->
+                        <div class="border-t border-[#242932] pt-4">
+                            <h3 class="text-xs font-bold text-[#fa1167] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <i data-lucide="activity" class="w-4 h-4"></i> Touchdown Telemetry
+                            </h3>
+                            
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">VERTICAL SPEED (FPM)</label>
+                                    <div class="relative">
+                                        <input type="number" id="inp-vs" step="1" max="0" min="-1500" placeholder="-140" required class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg pl-3 pr-12 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                                        <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">fpm</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">TOUCHDOWN G-FORCE</label>
+                                    <div class="relative">
+                                        <input type="number" id="inp-gforce" step="0.01" min="0.5" max="6.0" placeholder="1.2" required class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg pl-3 pr-8 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                                        <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">G</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">BANK ANGLE (DEG)</label>
+                                    <div class="relative">
+                                        <input type="number" id="inp-bank" step="0.1" min="0" max="45" placeholder="1.0" required class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg pl-3 pr-8 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                                        <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">°</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">PITCH ANGLE (DEG)</label>
+                                    <div class="relative">
+                                        <input type="number" id="inp-pitch" step="0.1" min="-10" max="20" placeholder="3.5" required class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg pl-3 pr-8 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                                        <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">°</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">AIRSPEED DEVIATION vs VREF</label>
+                                    <div class="relative">
+                                        <input type="number" id="inp-vref" step="1" min="-30" max="40" placeholder="+2" required class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg pl-3 pr-10 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                                        <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-mono">kts</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">TRAINING TRACK</label>
+                                    <select id="inp-syllabus-track" class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167]">
+                                        <option value="none">General / Solo Flight</option>
+                                        <option value="c152_1">C152 - Lesson 1: Basic Pattern</option>
+                                        <option value="c152_2">C152 - Lesson 2: Crosswind Landings</option>
+                                        <option value="c172_1">C172 - Lesson 1: Short Field Touchdown</option>
+                                        <option value="c172_2">C172 - Lesson 2: Night Operations</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">PILOT REMARKS & NOTES</label>
+                            <input type="text" id="inp-notes" placeholder="Smooth flare, slight crosswind from left." class="w-full bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-[#fa1167]">
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-[#fa1167] hover:bg-[#e00052] text-white font-bold rounded-xl shadow-lg shadow-[#fa1167]/20 transition flex items-center justify-center gap-2">
+                            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                            Save Flight to Logbook
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Right Live Preview Card -->
+                <div class="lg:col-span-5 space-y-6">
+                    <div class="strata-card p-6 flex flex-col justify-between h-full space-y-6">
+                        <div>
+                            <div class="flex items-center justify-between border-b border-[#242932] pb-3 mb-4">
+                                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                    <i data-lucide="cpu" class="w-4 h-4 text-[#fa1167]"></i>
+                                    Landing Grade Evaluator
+                                </h3>
+                                <span class="text-xs text-slate-500 font-mono">Live Rating</span>
+                            </div>
+
+                            <!-- Live Badge Container -->
+                            <div id="grade-container" class="text-center p-6 rounded-xl bg-[#0d0f12] border border-[#242932] my-4 transition-all">
+                                <div id="grade-badge" class="inline-block px-3 py-1 rounded-full text-xs font-bold font-mono uppercase tracking-widest mb-2 bg-[#242932] text-slate-400">
+                                    AWAITING ENTRY
+                                </div>
+                                <div id="grade-score" class="text-5xl font-extrabold font-mono text-slate-300 my-1">
+                                    --<span class="text-xl text-slate-500">/100</span>
+                                </div>
+                                <p id="grade-title" class="text-sm font-semibold text-slate-300">Enter touchdown telemetry</p>
+                            </div>
+
+                            <!-- Realtime Metrics Breakdown -->
+                            <div class="space-y-2.5 text-xs font-mono">
+                                <div class="flex justify-between items-center p-2.5 rounded-lg bg-[#0d0f12] border border-[#242932]">
+                                    <span class="text-slate-400">TOUCHDOWN RATE</span>
+                                    <span id="preview-vs" class="font-bold text-white">-- fpm</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2.5 rounded-lg bg-[#0d0f12] border border-[#242932]">
+                                    <span class="text-slate-400">G-FORCE IMPACT</span>
+                                    <span id="preview-g" class="font-bold text-white">-- G</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2.5 rounded-lg bg-[#0d0f12] border border-[#242932]">
+                                    <span class="text-slate-400">BANK ANGLE</span>
+                                    <span id="preview-bank" class="font-bold text-white">-- °</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2.5 rounded-lg bg-[#0d0f12] border border-[#242932]">
+                                    <span class="text-slate-400">PITCH ANGLE</span>
+                                    <span id="preview-pitch" class="font-bold text-white">-- °</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Grading Criteria Reference -->
+                        <div class="bg-[#0d0f12] p-4 rounded-xl border border-[#242932] text-xs space-y-2">
+                            <span class="font-bold text-slate-300 block border-b border-[#242932] pb-1">GRADING TIERS</span>
+                            <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                                <div class="text-cyan-400">🧈 Butter: &lt; 150 fpm</div>
+                                <div class="text-emerald-400">🟢 Smooth: 150 - 220 fpm</div>
+                                <div class="text-amber-400">🟡 Firm: 221 - 320 fpm</div>
+                                <div class="text-orange-400">🟠 Hard: 321 - 450 fpm</div>
+                                <div class="text-[#fa1167] col-span-2">💥 Crash: &gt; 450 fpm / extreme G</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2: LOGBOOK ==================== -->
+        <div id="tab-content-logbook" class="hidden space-y-6">
+            <div class="strata-card p-6 space-y-4">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#242932] pb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            <i data-lucide="book-open" class="w-4 h-4 text-[#fa1167]"></i>
+                            Flight History Logbook
+                        </h2>
+                        <p class="text-xs text-slate-400">Persistent log stored locally in your browser</p>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-2.5"></i>
+                            <input type="text" id="logbook-search" oninput="renderLogbook()" placeholder="Search tail or airport..." class="bg-[#0d0f12] border border-[#242932] rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#fa1167] w-44 font-mono">
+                        </div>
+                        <select id="logbook-filter-grade" onchange="renderLogbook()" class="bg-[#0d0f12] border border-[#242932] rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#fa1167] font-mono">
+                            <option value="ALL">All Grades</option>
+                            <option value="Butter">Butter</option>
+                            <option value="Smooth">Smooth</option>
+                            <option value="Firm">Firm</option>
+                            <option value="Hard">Hard</option>
+                            <option value="Crash">Crash</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-[#0d0f12] text-slate-400 uppercase text-[11px] border-b border-[#242932]">
+                            <tr>
+                                <th class="p-3">Date</th>
+                                <th class="p-3">Aircraft</th>
+                                <th class="p-3">Tail / Reg</th>
+                                <th class="p-3">Airport</th>
+                                <th class="p-3">Time</th>
+                                <th class="p-3">V/S</th>
+                                <th class="p-3">G-Force</th>
+                                <th class="p-3">Grade</th>
+                                <th class="p-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logbook-tbody" class="divide-y divide-[#242932] text-slate-300">
+                            <!-- Injected via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="logbook-empty" class="hidden text-center py-12 text-slate-500 space-y-2">
+                    <i data-lucide="plane" class="w-8 h-8 mx-auto stroke-1 text-slate-600"></i>
+                    <p class="text-sm">No flight logs found. Complete a landing entry to populate your history.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 3: TRAINING SYLLABUS ==================== -->
+        <div id="tab-content-syllabus" class="hidden space-y-6">
+            <div class="strata-card p-6 space-y-6">
+                <div class="border-b border-[#242932] pb-3">
+                    <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        <i data-lucide="graduation-cap" class="w-5 h-5 text-[#fa1167]"></i>
+                        Strata Flight Training Syllabus
+                    </h2>
+                    <p class="text-xs text-slate-400">Structured C152 & C172 progression lessons</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- C152 Track -->
+                    <div class="bg-[#0d0f12] rounded-xl p-5 border border-[#242932] space-y-4">
+                        <div class="flex items-center justify-between border-b border-[#242932] pb-2">
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-[#fa1167]/20 text-[#fa1167] rounded text-xs font-mono">TRACK 1</span>
+                                Cessna 152 Primary Flight Training
+                            </h3>
+                        </div>
+
+                        <div class="space-y-3 text-xs">
+                            <div class="p-3 rounded-lg bg-[#15181e] border border-[#242932] flex justify-between items-center">
+                                <div>
+                                    <div class="font-bold text-white">Lesson 1: Basic Traffic Pattern</div>
+                                    <div class="text-slate-400 text-[11px]">Log 1 landing with V/S smooth (&lt; 220 fpm)</div>
+                                </div>
+                                <span id="syl-c152-1" class="font-mono text-xs px-2 py-1 rounded bg-[#242932] text-slate-400">Incomplete</span>
+                            </div>
+
+                            <div class="p-3 rounded-lg bg-[#15181e] border border-[#242932] flex justify-between items-center">
+                                <div>
+                                    <div class="font-bold text-white">Lesson 2: Crosswind Technique</div>
+                                    <div class="text-slate-400 text-[11px]">Log 1 C152 landing with bank &lt; 3°</div>
+                                </div>
+                                <span id="syl-c152-2" class="font-mono text-xs px-2 py-1 rounded bg-[#242932] text-slate-400">Incomplete</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- C172 Track -->
+                    <div class="bg-[#0d0f12] rounded-xl p-5 border border-[#242932] space-y-4">
+                        <div class="flex items-center justify-between border-b border-[#242932] pb-2">
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-[#fa1167]/20 text-[#fa1167] rounded text-xs font-mono">TRACK 2</span>
+                                Cessna 172 Advanced Training
+                            </h3>
+                        </div>
+
+                        <div class="space-y-3 text-xs">
+                            <div class="p-3 rounded-lg bg-[#15181e] border border-[#242932] flex justify-between items-center">
+                                <div>
+                                    <div class="font-bold text-white">Lesson 1: Short Field Precision</div>
+                                    <div class="text-slate-400 text-[11px]">Log 1 C172 landing with Butter grade (&lt; 150 fpm)</div>
+                                </div>
+                                <span id="syl-c172-1" class="font-mono text-xs px-2 py-1 rounded bg-[#242932] text-slate-400">Incomplete</span>
+                            </div>
+
+                            <div class="p-3 rounded-lg bg-[#15181e] border border-[#242932] flex justify-between items-center">
+                                <div>
+                                    <div class="font-bold text-white">Lesson 2: Night Flight & Touchdowns</div>
+                                    <div class="text-slate-400 text-[11px]">Log 1 C172 night touchdown with score &gt; 80%</div>
+                                </div>
+                                <span id="syl-c172-2" class="font-mono text-xs px-2 py-1 rounded bg-[#242932] text-slate-400">Incomplete</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 4: STATS & ANALYTICS ==================== -->
+        <div id="tab-content-stats" class="hidden space-y-6">
+            
+            <!-- Key Metric Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center font-mono">
+                <div class="strata-card p-4">
+                    <span class="text-xs text-slate-500 block uppercase font-sans">Total Flights</span>
+                    <span id="dash-total-flights" class="text-2xl font-bold text-white">0</span>
+                </div>
+                <div class="strata-card p-4">
+                    <span class="text-xs text-slate-500 block uppercase font-sans">Total Hours</span>
+                    <span id="dash-total-hours" class="text-2xl font-bold text-[#fa1167]">0.0</span>
+                </div>
+                <div class="strata-card p-4">
+                    <span class="text-xs text-slate-500 block uppercase font-sans">Avg Vertical Speed</span>
+                    <span id="dash-avg-vs" class="text-2xl font-bold text-cyan-400">-- fpm</span>
+                </div>
+                <div class="strata-card p-4">
+                    <span class="text-xs text-slate-500 block uppercase font-sans">Smooth Landing Ratio</span>
+                    <span id="dash-smooth-ratio" class="text-2xl font-bold text-emerald-400">0%</span>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- V/S Trend Chart -->
+                <div class="strata-card p-6 space-y-3">
+                    <div class="flex justify-between items-center border-b border-[#242932] pb-3">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i data-lucide="trending-down" class="w-4 h-4 text-[#fa1167]"></i>
+                            Touchdown V/S History
+                        </h3>
+                        <span class="text-xs text-slate-500 font-mono">fpm</span>
+                    </div>
+                    <div class="h-64 relative">
+                        <canvas id="chart-vs-trend"></canvas>
+                    </div>
+                </div>
+
+                <!-- Touchdown Breakdown -->
+                <div class="strata-card p-6 space-y-3">
+                    <div class="flex justify-between items-center border-b border-[#242932] pb-3">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-[#fa1167]"></i>
+                            Landing Breakdown
+                        </h3>
+                        <span class="text-xs text-slate-500 font-mono">Tiers</span>
+                    </div>
+                    <div class="h-64 relative flex justify-center">
+                        <canvas id="chart-grades"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-12 border-t border-[#242932] py-6 text-center text-xs text-slate-500 font-mono">
+        <p>Strata Flight School • Version v0.3.0 • Powered by Planespotters.net API</p>
+    </footer>
+
+    <!-- Backup Modal -->
+    <div id="modal-export" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="strata-card p-6 max-w-md w-full space-y-4 border border-[#242932]">
+            <div class="flex items-center justify-between border-b border-[#242932] pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i data-lucide="database" class="w-4 h-4 text-[#fa1167]"></i>
+                    Backup Flight Logbook
+                </h3>
+                <button onclick="closeExportImportModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <p class="text-xs text-slate-400 leading-relaxed">
+                Export a backup JSON file of your complete flight history, or restore an existing backup.
+            </p>
+
+            <div class="space-y-3 pt-2">
+                <button onclick="exportDataJSON()" class="w-full py-2.5 bg-[#fa1167] hover:bg-[#e00052] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition">
+                    <i data-lucide="download" class="w-4 h-4"></i> Export Backup (.JSON)
+                </button>
+                
+                <div class="border-t border-[#242932] pt-3">
+                    <label class="block text-xs font-semibold text-slate-300 mb-2">RESTORE FROM FILE</label>
+                    <input type="file" id="import-file-input" accept=".json" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1e222a] file:text-slate-200 hover:file:bg-[#242932] cursor-pointer">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================================================
+           STATE MANAGEMENT & DATA STORAGE
+           ========================================================================== */
+        
+        const LOCAL_STORAGE_KEY = 'strata_flight_school_v030';
+
+        let state = {
+            version: 'v0.3.0',
+            flights: []
+        };
+
+        let vsTrendChart = null;
+        let gradesChart = null;
+
+        window.onload = function() {
+            lucide.createIcons();
+            setDefaultDateTime();
+            loadStateFromStorage();
+            calculateRealtimePreview();
+            setupFormListeners();
+            updateAllViews();
+        };
+
+        function setDefaultDateTime() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('inp-datetime').value = now.toISOString().slice(0,16);
+        }
+
+        function loadStateFromStorage() {
+            try {
+                const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    state.flights = parsed.flights || [];
+                }
+            } catch (e) {
+                console.error("Failed to load local storage state", e);
+            }
+        }
+
+        function saveStateToStorage() {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+                    version: state.version,
+                    flights: state.flights
+                }));
+            } catch (e) {
+                console.error("Failed to save state to local storage", e);
+            }
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `Strata_FlightLogbook_${new Date().toISOString().slice(0,10)}.json`);
+            dlAnchorElem.click();
+        }
+
+        document.getElementById('import-file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if (imported && Array.isArray(imported.flights)) {
+                        state.flights = imported.flights;
+                        saveStateToStorage();
+                        updateAllViews();
+                        closeExportImportModal();
+                    } else {
+                        alert('Invalid flight backup JSON file format.');
+                    }
+                } catch (err) {
+                    alert('Error reading JSON backup file.');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        /* ==========================================================================
+           AIRCRAFT SELECT & PLANESPOTTERS.NET API INTEGRATION
+           ========================================================================== */
+
+        function handleAircraftSelectChange() {
+            const val = document.getElementById('inp-aircraft-select').value;
+            const customContainer = document.getElementById('custom-aircraft-container');
+            if (val === 'CUSTOM') {
+                customContainer.classList.remove('hidden');
+            } else {
+                customContainer.classList.add('hidden');
+            }
+        }
+
+        async function fetchPlanespottersPhoto() {
+            const tailInput = document.getElementById('inp-tail');
+            const reg = tailInput.value.trim().toUpperCase();
+            
+            const photoContainer = document.getElementById('photo-[#fa1167]view-container');
+            const errorMsg = document.getElementById('photo-error-message');
+
+            if (!reg) {
+                photoContainer.classList.add('hidden');
+                errorMsg.classList.add('hidden');
+                return;
+            }
+
+            try {
+                // Official Public Planespotters API endpoint
+                const response = await fetch(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(reg)}`);
+                if (!response.ok) throw new Error("API request failed");
+                
+                const data = await response.json();
+                
+                if (data && data.photos && data.photos.length > 0) {
+                    const photo = data.photos[0];
+                    
+                    document.getElementById('aircraft-photo-img').src = photo.thumbnail_large ? photo.thumbnail_large.src : photo.thumbnail.src;
+                    document.getElementById('photo-reg-label').textContent = `REGISTRATION: ${reg}`;
+                    document.getElementById('photo-title-label').textContent = photo.aircraft || 'Aircraft Photo';
+                    document.getElementById('photo-photographer-label').textContent = `Photo by ${photo.photographer || 'Planespotters.net'}`;
+                    document.getElementById('photo-link').href = photo.link || '#';
+
+                    // Auto-fill aircraft if model is found
+                    if (photo.aircraft) {
+                        const modelLower = photo.aircraft.toLowerCase();
+                        if (modelLower.includes('152')) {
+                            document.getElementById('inp-aircraft-select').value = 'C152';
+                            handleAircraftSelectChange();
+                        } else if (modelLower.includes('172')) {
+                            document.getElementById('inp-aircraft-select').value = 'C172';
+                            handleAircraftSelectChange();
+                        } else {
+                            document.getElementById('inp-aircraft-select').value = 'CUSTOM';
+                            handleAircraftSelectChange();
+                            document.getElementById('inp-aircraft-custom').value = photo.aircraft;
+                        }
+                    }
+
+                    photoContainer.classList.remove('hidden');
+                    errorMsg.classList.add('hidden');
+                } else {
+                    photoContainer.classList.add('hidden');
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.warn("Planespotters API lookup failed:", err);
+                photoContainer.classList.add('hidden');
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        /* ==========================================================================
+           EVALUATOR & AUTO-GRADING ENGINE
+           ========================================================================== */
+
+        function evaluateLanding(vs, gforce, bank, pitch, vref) {
+            const absVS = Math.abs(vs);
+            const absBank = Math.abs(bank);
+            const absVref = Math.abs(vref);
+
+            let grade = 'Butter';
+            let score = 100;
+            let colorClass = 'text-cyan-400';
+            let bgClass = 'bg-cyan-950/80 text-cyan-400 border-cyan-800/50';
+
+            if (absVS < 150 && gforce <= 1.5) {
+                grade = 'Butter';
+                colorClass = 'text-cyan-400';
+                bgClass = 'bg-cyan-950/80 text-cyan-400 border border-cyan-800/50';
+                score -= (absVS / 150) * 8;
+            } else if (absVS <= 220 && gforce <= 1.8) {
+                grade = 'Smooth';
+                colorClass = 'text-emerald-400';
+                bgClass = 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/50';
+                score -= 10 + ((absVS - 150) / 70) * 15;
+            } else if (absVS <= 320 && gforce <= 2.2) {
+                grade = 'Firm';
+                colorClass = 'text-amber-400';
+                bgClass = 'bg-amber-950/80 text-amber-400 border border-amber-800/50';
+                score -= 25 + ((absVS - 220) / 100) * 20;
+            } else if (absVS <= 450 && gforce <= 2.8) {
+                grade = 'Hard';
+                colorClass = 'text-orange-400';
+                bgClass = 'bg-orange-950/80 text-orange-400 border border-orange-800/50';
+                score -= 50 + ((absVS - 320) / 130) * 25;
+            } else {
+                grade = 'Crash';
+                colorClass = 'text-[#fa1167]';
+                bgClass = 'bg-[#fa1167]/20 text-[#fa1167] border border-[#fa1167]/40';
+                score = Math.max(0, 100 - (absVS - 450) * 0.2 - 60);
+            }
+
+            if (gforce > 2.0) score -= (gforce - 2.0) * 15;
+            if (absBank > 3) score -= (absBank - 3) * 3;
+            if (absVref > 10) score -= (absVref - 10) * 1;
+
+            score = Math.max(0, Math.min(100, Math.round(score)));
+
+            return { score, grade, colorClass, bgClass };
+        }
+
+        function setupFormListeners() {
+            ['inp-vs', 'inp-gforce', 'inp-bank', 'inp-pitch', 'inp-vref'].forEach(id => {
+                document.getElementById(id).addEventListener('input', calculateRealtimePreview);
+            });
+        }
+
+        function calculateRealtimePreview() {
+            const vs = parseFloat(document.getElementById('inp-vs').value) || 0;
+            const g = parseFloat(document.getElementById('inp-gforce').value) || 1.0;
+            const bank = parseFloat(document.getElementById('inp-bank').value) || 0;
+            const pitch = parseFloat(document.getElementById('inp-pitch').value) || 0;
+            const vref = parseFloat(document.getElementById('inp-vref').value) || 0;
+
+            document.getElementById('preview-vs').textContent = `${vs} fpm`;
+            document.getElementById('preview-g').textContent = `${g.toFixed(2)} G`;
+            document.getElementById('preview-bank').textContent = `${bank}°`;
+            document.getElementById('preview-pitch').textContent = `${pitch}°`;
+
+            if (vs < 0) {
+                const res = evaluateLanding(vs, g, bank, pitch, vref);
+                const badge = document.getElementById('grade-badge');
+                badge.textContent = res.grade;
+                badge.className = `inline-block px-3 py-1 rounded-full text-xs font-bold font-mono uppercase tracking-widest mb-2 ${res.bgClass}`;
+
+                const scoreEl = document.getElementById('grade-score');
+                scoreEl.innerHTML = `${res.score}<span class="text-xl text-slate-500">/100</span>`;
+                scoreEl.className = `text-5xl font-extrabold font-mono my-1 ${res.colorClass}`;
+
+                document.getElementById('grade-title').textContent = `${res.grade} Landing`;
+            }
+        }
+
+        function processFlightSubmission(e) {
+            e.preventDefault();
+
+            const selectVal = document.getElementById('inp-aircraft-select').value;
+            const aircraft = selectVal === 'CUSTOM' ? (document.getElementById('inp-aircraft-custom').value || 'Custom') : selectVal;
+            const tail = document.getElementById('inp-tail').value.toUpperCase();
+            const airport = document.getElementById('inp-airport').value.toUpperCase();
+            const duration = parseFloat(document.getElementById('inp-duration').value) || 1.0;
+            const datetime = document.getElementById('inp-datetime').value;
+            const vs = parseFloat(document.getElementById('inp-vs').value);
+            const gforce = parseFloat(document.getElementById('inp-gforce').value);
+            const bank = parseFloat(document.getElementById('inp-bank').value);
+            const pitch = parseFloat(document.getElementById('inp-pitch').value);
+            const vref = parseFloat(document.getElementById('inp-vref').value);
+            const track = document.getElementById('inp-syllabus-track').value;
+            const notes = document.getElementById('inp-notes').value;
+
+            const res = evaluateLanding(vs, gforce, bank, pitch, vref);
+
+            const flightEntry = {
+                id: 'fl_' + Date.now(),
+                timestamp: datetime || new Date().toISOString(),
+                aircraft,
+                tail,
+                airport,
+                duration,
+                vs,
+                gforce,
+                bank,
+                pitch,
+                vref,
+                track,
+                notes,
+                score: res.score,
+                grade: res.grade
+            };
+
+            state.flights.unshift(flightEntry);
+            saveStateToStorage();
+            updateAllViews();
+
+            // Reset notes
+            document.getElementById('inp-notes').value = '';
+
+            switchTab('logbook');
+        }
+
+        /* ==========================================================================
+           VIEWS & UI RENDERING ENGINE
+           ========================================================================== */
+
+        function updateAllViews() {
+            updateHeaderAndStats();
+            renderLogbook();
+            renderSyllabusProgress();
+            renderAnalyticsCharts();
+        }
+
+        function updateHeaderAndStats() {
+            const totalFlights = state.flights.length;
+            const totalHours = state.flights.reduce((acc, f) => acc + (f.duration || 0), 0);
+            
+            let avgVS = 0;
+            let smoothCount = 0;
+
+            if (totalFlights > 0) {
+                const vsSum = state.flights.reduce((acc, f) => acc + Math.abs(f.vs), 0);
+                avgVS = Math.round(vsSum / totalFlights);
+                smoothCount = state.flights.filter(f => f.grade === 'Butter' || f.grade === 'Smooth').length;
+            }
+
+            const smoothRatio = totalFlights > 0 ? Math.round((smoothCount / totalFlights) * 100) : 0;
+
+            document.getElementById('hdr-hours').textContent = totalHours.toFixed(1);
+            document.getElementById('hdr-avg-vs').textContent = totalFlights > 0 ? `-${avgVS} fpm` : '-- fpm';
+            document.getElementById('hdr-flights').textContent = totalFlights;
+
+            document.getElementById('dash-total-flights').textContent = totalFlights;
+            document.getElementById('dash-total-hours').textContent = totalHours.toFixed(1);
+            document.getElementById('dash-avg-vs').textContent = totalFlights > 0 ? `-${avgVS} fpm` : '-- fpm';
+            document.getElementById('dash-smooth-ratio').textContent = `${smoothRatio}%`;
+        }
+
+        function renderLogbook() {
+            const tbody = document.getElementById('logbook-tbody');
+            const emptyState = document.getElementById('logbook-empty');
+            const query = document.getElementById('logbook-search').value.toLowerCase();
+            const gradeFilter = document.getElementById('logbook-filter-grade').value;
+
+            tbody.innerHTML = '';
+
+            const filtered = state.flights.filter(f => {
+                const matchesSearch = (f.aircraft || '').toLowerCase().includes(query) ||
+                                      (f.tail || '').toLowerCase().includes(query) ||
+                                      (f.airport || '').toLowerCase().includes(query);
+                const matchesGrade = (gradeFilter === 'ALL') || (f.grade === gradeFilter);
+                return matchesSearch && matchesGrade;
+            });
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filtered.forEach(f => {
+                const res = evaluateLanding(f.vs, f.gforce, f.bank, f.pitch, f.vref);
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-[#1e222a] transition';
+
+                const dateStr = new Date(f.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-400">${dateStr}</td>
+                    <td class="p-3 font-bold text-white">${f.aircraft}</td>
+                    <td class="p-3 text-[#fa1167] font-semibold">${f.tail || '--'}</td>
+                    <td class="p-3 text-cyan-400">${f.airport}</td>
+                    <td class="p-3 text-slate-300">${f.duration} hrs</td>
+                    <td class="p-3 font-bold ${res.colorClass}">${f.vs} fpm</td>
+                    <td class="p-3 text-slate-300">${f.gforce.toFixed(2)} G</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${res.bgClass}">${f.grade}</span>
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick="deleteFlightLog('${f.id}')" class="p-1 text-slate-500 hover:text-[#fa1167] transition">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        function deleteFlightLog(id) {
+            state.flights = state.flights.filter(f => f.id !== id);
+            saveStateToStorage();
+            updateAllViews();
+        }
+
+        function renderSyllabusProgress() {
+            const hasC152_1 = state.flights.some(f => f.aircraft === 'C152' && Math.abs(f.vs) <= 220);
+            const hasC152_2 = state.flights.some(f => f.aircraft === 'C152' && Math.abs(f.bank) <= 3.0);
+            
+            const hasC172_1 = state.flights.some(f => f.aircraft === 'C172' && f.grade === 'Butter');
+            const hasC172_2 = state.flights.some(f => f.aircraft === 'C172' && f.score >= 80);
+
+            updateSyllabusBadge('syl-c152-1', hasC152_1);
+            updateSyllabusBadge('syl-c152-2', hasC152_2);
+            updateSyllabusBadge('syl-c172-1', hasC172_1);
+            updateSyllabusBadge('syl-c172-2', hasC172_2);
+        }
+
+        function updateSyllabusBadge(elementId, isComplete) {
+            const el = document.getElementById(elementId);
+            if (isComplete) {
+                el.textContent = 'Completed';
+                el.className = 'font-mono text-xs px-2 py-1 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/50 font-bold';
+            } else {
+                el.textContent = 'Incomplete';
+                el.className = 'font-mono text-xs px-2 py-1 rounded bg-[#242932] text-slate-400';
+            }
+        }
+
+        function renderAnalyticsCharts() {
+            if (state.flights.length === 0) return;
+
+            const chronological = [...state.flights].reverse();
+            const labels = chronological.map((f, i) => `#${i + 1} (${f.aircraft})`);
+            const vsData = chronological.map(f => Math.abs(f.vs));
+
+            // Chart 1: Touchdown V/S History
+            const ctx1 = document.getElementById('chart-vs-trend').getContext('2d');
+            if (vsTrendChart) vsTrendChart.destroy();
+
+            vsTrendChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Vertical Speed (-fpm)',
+                        data: vsData,
+                        borderColor: '#fa1167',
+                        backgroundColor: 'rgba(250, 17, 103, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#fa1167'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            grid: { color: '#242932' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            grid: { color: '#242932' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // Chart 2: Grade Breakdown
+            const counts = { Butter: 0, Smooth: 0, Firm: 0, Hard: 0, Crash: 0 };
+            state.flights.forEach(f => {
+                if (counts[f.grade] !== undefined) counts[f.grade]++;
+            });
+
+            const ctx2 = document.getElementById('chart-grades').getContext('2d');
+            if (gradesChart) gradesChart.destroy();
+
+            gradesChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Butter', 'Smooth', 'Firm', 'Hard', 'Crash'],
+                    datasets: [{
+                        data: [counts.Butter, counts.Smooth, counts.Firm, counts.Hard, counts.Crash],
+                        backgroundColor: ['#22d3ee', '#10b981', '#f59e0b', '#f97316', '#fa1167'],
+                        borderWidth: 2,
+                        borderColor: '#0d0f12'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#cbd5e1', font: { family: 'JetBrains Mono', size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function switchTab(tabName) {
+            ['analyzer', 'logbook', 'syllabus', 'stats'].forEach(tab => {
+                const btn = document.getElementById(`tab-btn-${tab}`);
+                const content = document.getElementById(`tab-content-${tab}`);
+
+                if (tab === tabName) {
+                    btn.className = "px-5 py-3 font-semibold text-sm border-b-2 border-[#fa1167] text-[#fa1167] flex items-center gap-2 whitespace-nowrap transition";
+                    content.classList.remove('hidden');
+                } else {
+                    btn.className = "px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 whitespace-nowrap transition";
+                    content.classList.add('hidden');
+                }
+            });
+
+            if (tabName === 'stats') {
+                setTimeout(renderAnalyticsCharts, 50);
+            }
+        }
+
+        function openExportImportModal() {
+            document.getElementById('modal-export').classList.remove('hidden');
+        }
+
+        function closeExportImportModal() {
+            document.getElementById('modal-export').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
